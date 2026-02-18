@@ -1,0 +1,4 @@
+interface:
+  display_name: "Build HSSI Payload"
+  short_description: "AI-first payload build and verification from hssi_metadata.md"
+  default_prompt: "Build HSSI submission JSON directly from hssi_metadata.md, run completeness and format verification passes, and report fixes before any submit."
