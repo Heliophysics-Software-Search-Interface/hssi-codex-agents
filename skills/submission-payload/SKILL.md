@@ -215,12 +215,3 @@ Normalize values to **exact** strings from the `name` field in these endpoints o
 **Simple reference:** `payloads/ACE_magnetometer_submission.json` — a simpler payload with fewer optional fields.
 
 **HSSI developers' curated example:** `concept/import_submission.json` in the [hssi-website repo](https://github.com/Heliophysics-Software-Search-Interface/hssi-website). This is the intended spec but may lag behind the actual API implementation (see quirk #5 above). Use the `update-api-spec` skill to check for updates.
-
----
-
-## Local Reference Files
-
-- `skills/submission-payload/references/field_mapping.md`
-- `payloads/gemini3d_submission.json`
-- `payloads/ACE_magnetometer_submission.json`
-- `payloads/pydarn_submission.json`

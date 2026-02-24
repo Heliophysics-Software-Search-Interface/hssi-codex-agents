@@ -171,10 +171,3 @@ After roundtrip verification, produce a summary:
 ```
 
 A submission passes verification if there are zero Degraded/Lost fields (or all Degraded/Lost fields are explicitly accepted by the user).
-
----
-
-## Local Reference Files
-
-- `skills/submission-verification/references/checklist.md`
-- `payloads/gemini3d_submission.json`

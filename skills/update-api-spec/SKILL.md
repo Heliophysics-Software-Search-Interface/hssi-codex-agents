@@ -1,78 +1,84 @@
 ---
 name: update-api-spec
 description: >
-  Update submitter API references from hssi-website source code.
-  Use when HSSI API field names, shapes, or behavior have changed.
+  Update the submitter's API reference files from the hssi-website source code.
+  Use when the HSSI API has changed and reference files need syncing.
+  Clones or pulls the hssi-website repo, reads the relevant source files,
+  and updates submission-payload and submission-verification skills.
 ---
 
 # Update API Spec
 
-Sync submitter-facing reference material with current HSSI backend behavior.
+Sync the submitter's reference files with the latest HSSI API source code.
 
-## When To Use
+**When to use:** The HSSI API has changed (new fields, renamed keys, changed shapes, new quirks) and the `submission-payload` and `submission-verification` skills need updating.
 
-- payloads start failing due to field/key mismatches
-- controlled-list endpoints appear changed
-- HSSI team announces API/schema updates
+**How often:** Rarely. The API is relatively stable. Run this when you notice submission failures due to field name mismatches, or when the HSSI team announces API changes.
+
+---
 
 ## Workflow
 
-### Step 1: Fetch source of truth
+### Step 1: Get the hssi-website Source
 
-Use local clone if available (preferred):
-
-- `~/git/hssi-website`
-
-Otherwise clone to temp:
+Clone or pull the HSSI website repository:
 
 ```bash
+# Clone to a temp location if not already present
 git clone https://github.com/Heliophysics-Software-Search-Interface/hssi-website.git /tmp/hssi-website
+
+# Or pull if already cloned
+cd /tmp/hssi-website && git pull
 ```
 
-### Step 2: Read canonical files
+If the user already has a local clone (e.g., `~/git/hssi-website`), use that instead.
 
-Review these files in `hssi-website`:
+### Step 2: Read the Relevant Source Files
 
-1. `concept/import_submission_notes.md`
-2. `concept/import_submission.json`
-3. `django/website/views/api_submit.py`
-4. `django/website/data_parser.py`
-5. `django/website/forms/names.py`
+Read these specific files:
 
-### Step 3: Compare with local skills
+1. **`concept/import_submission_notes.md`** — Official API documentation. Field list, required/recommended/optional classification, object schemas.
 
-Compare findings against:
+2. **`concept/import_submission.json`** — HSSI developers' curated example payload. Check this for the latest field names, shapes, and conventions. **Note:** This file may lag behind the actual API implementation; cross-reference with the parser source.
 
+3. **`django/website/views/api_submit.py`** — The submission endpoint handler. Shows what the backend actually does with submitted data.
+
+4. **`django/website/data_parser.py`** — Contains `api_submission_to_formdict()` and related functions. This is the authoritative field mapping and transformation logic — it defines how submitted JSON is parsed and stored.
+
+5. **`django/website/forms/names.py`** — Field name constants used by the backend. Reveals the canonical internal field names.
+
+### Step 3: Compare Against Current Skills
+
+Read the current versions of:
 - `skills/submission-payload/SKILL.md`
 - `skills/submission-verification/SKILL.md`
-- `skills/submission-payload/references/field_mapping.md`
-- `skills/submission-verification/references/checklist.md`
 
-Explicitly detect parser-vs-documentation mismatches:
+Compare the source files against the current skill content. Look for:
+- New fields added to the API
+- Renamed keys (e.g., snake_case → camelCase changes)
+- Changed shapes (e.g., string → object, array → single value)
+- New or changed controlled-list endpoints
+- New backend quirks or representation differences
+- Changes to required vs optional field classification
 
-- differences between `concept/import_submission.json` and parser/runtime handling
-- differences between conceptual docs and `django/website/data_parser.py`
-- key naming/shape mismatches that could break payload compatibility
+### Step 4: Update the Skill Files
 
-### Step 4: Update local reference skills
+Update `submission-payload/SKILL.md` and `submission-verification/SKILL.md` to reflect any changes found. Specifically:
 
-Update mappings and behavior docs for:
+- Update the Section-to-API-Field Mapping table
+- Update Object Specifications if schemas changed
+- Update Known Backend Quirks with any new findings
+- Update the controlled-list endpoint table if endpoints changed
+- Update the known representation differences in `submission-verification`
 
-- field names and shapes
-- required vs optional expectations
-- controlled-list endpoints
-- known backend quirks and equivalence mappings
+### Step 5: Report Changes
 
-### Step 5: Report deltas
-
-Produce a concise changelog of:
-
-- what changed
-- why it changed
-- any breaking impact on existing payloads/scripts
-- parser-vs-doc mismatches discovered (with concrete examples)
-- whether each mismatch is breaking, non-breaking, or informational
+Produce a summary of what changed and why:
+- List each change made to the skill files
+- Note any discrepancies between `import_submission.json` and the actual parser behavior
+- Flag any breaking changes that might affect existing payloads
 
 ### Step 6: Cleanup
 
-If temp clone used, keep or remove based on operator preference.
+- If you cloned to `/tmp/hssi-website`, either leave it (for future runs) or remove it based on user preference
+- If using the user's local clone, leave it as-is
