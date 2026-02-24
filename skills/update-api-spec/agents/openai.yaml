@@ -1,0 +1,4 @@
+interface:
+  display_name: "Update API Spec"
+  short_description: "Sync submitter references with hssi-website"
+  default_prompt: "Compare hssi-website API implementation with local payload/verification references and update drifted docs."

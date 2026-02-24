@@ -1,0 +1,4 @@
+interface:
+  display_name: "Submission Verification"
+  short_description: "Verify persisted submission fidelity"
+  default_prompt: "Run post-submit roundtrip verification and classify each field as Match, Equivalent, or Degraded/Lost."

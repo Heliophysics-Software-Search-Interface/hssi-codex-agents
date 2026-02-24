@@ -1,0 +1,4 @@
+interface:
+  display_name: "HSSI Metadata Submitter"
+  short_description: "Build, verify, and submit metadata payloads"
+  default_prompt: "Convert hssi_metadata.md into HSSI API JSON, verify normalization, and submit only after explicit approval."

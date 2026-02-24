@@ -1,0 +1,4 @@
+interface:
+  display_name: "HSSI Field Definitions"
+  short_description: "Canonical field definitions and allowed values"
+  default_prompt: "Use HSSI field definitions to interpret metadata requirements and allowed value constraints."

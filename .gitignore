@@ -1,3 +1,19 @@
+# macOS
 .DS_Store
+
+# Runtime artifacts
+artifacts/*
+!artifacts/.gitkeep
+
+# Cloned repos — only track extracted metadata files at repo roots
+repos/**
+!repos/.gitkeep
+!repos/*/
+!repos/*/hssi_metadata.md
+
+# Payload fixtures (track only canonical examples)
 payloads/*
 !payloads/.gitkeep
+!payloads/ACE_magnetometer_submission.json
+!payloads/gemini3d_submission.json
+!payloads/pydarn_submission.json

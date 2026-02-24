@@ -1,0 +1,4 @@
+interface:
+  display_name: "HSSI Metadata Validator"
+  short_description: "Independent adversarial metadata validation"
+  default_prompt: "Validate this hssi_metadata.md file independently and produce an evidence-based ERROR/WARNING/SUGGESTION report."

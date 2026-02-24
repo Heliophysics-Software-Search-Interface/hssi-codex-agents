@@ -1,4 +1,0 @@
-interface:
-  display_name: "Test Local Submission"
-  short_description: "Submit to localhost API and verify persisted records"
-  default_prompt: "Submit the payload to local HSSI only after explicit approval, then verify persistence through api/view and report mismatches."

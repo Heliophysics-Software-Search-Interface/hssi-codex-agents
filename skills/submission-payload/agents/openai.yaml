@@ -1,0 +1,4 @@
+interface:
+  display_name: "Submission Payload"
+  short_description: "Map metadata to API payload JSON"
+  default_prompt: "Build an HSSI submission payload JSON from hssi_metadata.md and verify schema and controlled-list normalization."

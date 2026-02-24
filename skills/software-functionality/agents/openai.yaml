@@ -1,0 +1,4 @@
+interface:
+  display_name: "Software Functionality"
+  short_description: "Classify software functionality with full taxonomy coverage"
+  default_prompt: "Classify this software against HSSI Software Functionality values and justify each selection with evidence."
