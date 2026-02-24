@@ -5,7 +5,6 @@ description: >
   Use when analyzing, extracting, or validating the Software Functionality field (Field 4) for
   HSSI metadata. Provides code patterns, library mappings, and decision guidance for the 85+
   functionality values.
-user-invocable: false
 ---
 
 # Software Functionality Classification Guide

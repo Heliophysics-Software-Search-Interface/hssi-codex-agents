@@ -4,7 +4,6 @@ description: >
   Post-submission verification workflow for HSSI API. Contains roundtrip diff
   methodology, verification endpoints, known representation differences, and
   troubleshooting. Use when verifying HSSI submissions.
-user-invocable: false
 ---
 
 # HSSI Submission Verification

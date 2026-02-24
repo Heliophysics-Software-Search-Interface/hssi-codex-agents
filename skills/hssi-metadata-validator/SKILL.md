@@ -4,11 +4,6 @@ description: >
   Validates an HSSI metadata file against the actual repository contents.
   Use when the user asks to validate, verify, check, or review an hssi_metadata.md file.
   Returns a structured report of errors, warnings, and suggestions.
-tools: Read, Glob, Grep, Bash, WebFetch, WebSearch
-model: sonnet
-skills:
-  - hssi-field-definitions
-  - software-functionality
 ---
 
 # HSSI Metadata Validator
@@ -34,6 +29,7 @@ Start by reading the metadata file in full, then begin validation.
 ## Validation Process
 
 Execute these four phases in order. Be thorough — check every field.
+Use the `hssi-field-definitions` skill as the authoritative source for required fields, allowed values, and format constraints throughout all phases.
 
 ### Phase 1: Structural Validation
 

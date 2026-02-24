@@ -4,7 +4,6 @@ description: >
   HSSI API submission payload specification. Contains field mapping from
   hssi_metadata.md to API JSON, payload structure, controlled-list endpoints,
   and normalization rules. Use when building or reasoning about HSSI submissions.
-user-invocable: false
 ---
 
 # HSSI Submission Payload Specification

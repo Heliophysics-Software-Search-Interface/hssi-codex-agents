@@ -3,12 +3,6 @@ name: hssi-metadata-submitter
 description: >
   Converts hssi_metadata.md files into HSSI API submission payloads and submits
   them. Use when the user asks to submit, build a payload, or send metadata to HSSI.
-tools: Read, Glob, Grep, Bash, WebFetch
-model: sonnet
-skills:
-  - hssi-field-definitions
-  - submission-payload
-  - submission-verification
 ---
 
 # HSSI Metadata Submitter
