@@ -1,0 +1,4 @@
+interface:
+  display_name: "HSSI Metadata Updater"
+  short_description: "Refresh, enrich, or target-update HSSI metadata"
+  default_prompt: "Update existing HSSI software metadata via refresh, enrich, or targeted mode with diff review, explicit approval, and roundtrip verification."

@@ -6,6 +6,7 @@ Codex agents for extracting HSSI metadata from any repo and submitting it to the
 - **Extractor** (AGENTS.md) — Extracts metadata from software repositories into `hssi_metadata.md`
 - **Validator** (skills/hssi-metadata-validator/SKILL.md) — Independently validates extracted metadata
 - **Submitter** (skills/hssi-metadata-submitter/SKILL.md) — Converts metadata to API JSON and submits to HSSI
+- **Updater** (skills/hssi-metadata-updater/SKILL.md) — Updates existing HSSI entries with fresh metadata from repos
 
 ## Steps to Use:
 1. Get [Codex CLI](https://developers.openai.com/codex/cli/)
@@ -14,3 +15,4 @@ Codex agents for extracting HSSI metadata from any repo and submitting it to the
 5. Point it to a software repo (e.g. local folder path, GitHub URL, DOI)
 6. Metadata gets extracted into `repos/<repo>/hssi_metadata.md`
 7. Optionally: ask Codex to submit the metadata to HSSI (production or localhost)
+8. To update existing entries: ask Codex to "update sunpy on HSSI" or "enrich sunpy's metadata"

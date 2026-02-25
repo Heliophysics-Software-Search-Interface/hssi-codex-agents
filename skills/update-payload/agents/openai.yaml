@@ -1,0 +1,4 @@
+interface:
+  display_name: "Update Payload"
+  short_description: "HSSI partial update payload spec"
+  default_prompt: "Use the HSSI update API spec to build correct /api/update payloads and classify field diffs safely."
