@@ -1,0 +1,4 @@
+interface:
+  display_name: "HSSI Metadata Extractor"
+  short_description: "Extract complete HSSI metadata from repositories"
+  default_prompt: "Extract comprehensive HSSI metadata from this repository and write hssi_metadata.md in the repo root."
