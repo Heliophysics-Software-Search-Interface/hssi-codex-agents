@@ -1,6 +1,6 @@
 # hssi-codex-agents
 
-Codex CLI agents for managing HSSI software metadata — extraction, validation, submission, and updates.
+Codex CLI agents for managing [HSSI](https://hssi.hsdcloud.org) software metadata — extraction, validation, submission, and updates.
 
 ## Agents
 
