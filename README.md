@@ -17,7 +17,7 @@ Codex CLI agents for managing [HSSI](https://hssi.hsdcloud.org) software metadat
 3. Run `codex` from the root dir
 4. Point it to a software repo (e.g. local folder path, GitHub URL, DOI)
 5. Metadata gets extracted into `repos/<repo>/hssi_metadata.md`
-6. Optionally: ask Codex to submit the metadata to HSSI
+6. Optionally: ask Codex to submit the metadata to HSSI (production or localhost)
 7. To update existing entries: ask Codex to "update sunpy on HSSI"
 
 ## Claude Code
