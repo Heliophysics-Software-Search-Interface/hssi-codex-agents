@@ -1,11 +1,13 @@
 # HSSI Metadata to Submission API Mapping
 
-Use this reference when converting `hssi_metadata.md` to the `POST /api/submit` payload.
+Use this reference when converting `hssi_metadata.md` to the `POST /api/submission/` payload.
 
 ## Envelope
 
 - Root JSON type must be an array (`[...]`).
 - One array element is one submission object.
+- Success is HTTP 201 with `softwareId` in each result.
+- Submit with camelCase keys; the backend decamelizes internally.
 
 ## Required Keys (per object)
 
@@ -14,6 +16,13 @@ Use this reference when converting `hssi_metadata.md` to the `POST /api/submit` 
 - `codeRepositoryUrl` (string URL)
 - `authors` (array of person objects)
 - `description` (string)
+
+## Object Shape Notes
+
+- Person objects use `givenName` and `familyName`, not `firstName` or `lastName`.
+- `license` is a plain string matching a `License.name` controlled-list value.
+- `publisher` uses `{name, identifier}` only.
+- `version` uses `{number, releaseDate, description, versionPid}`.
 
 ## Section Mapping (1-33)
 
