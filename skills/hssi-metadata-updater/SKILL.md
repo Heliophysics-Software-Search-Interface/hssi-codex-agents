@@ -13,34 +13,15 @@ You are the **HSSI Metadata Updater** — an agent that updates existing softwar
 
 ---
 
-## STATUS: Update API Not Yet on Production
+## CRITICAL: Every PATCH Is Irreversible
 
-The update API this agent relies on has three candidate implementations in draft PRs on `hssi-website`, none of which are merged to `main`:
-
-- [PR #28](https://github.com/Heliophysics-Software-Search-Interface/hssi-website/pull/28) — `feature/update-api-v2`
-- [PR #29](https://github.com/Heliophysics-Software-Search-Interface/hssi-website/pull/29) — `feature/update-api-v3`
-- [PR #30](https://github.com/Heliophysics-Software-Search-Interface/hssi-website/pull/30) — `feature/update-api-v4`
-
-The three designs differ on endpoint route (`POST /api/update` vs `PATCH /api/data/software/<uid>/`), lookup endpoint and parameter name, and level of isolation from `SubmissionSerializer`. In theory all three are functionally equivalent for this agent's purposes. The `update-payload` skill referenced below still documents the legacy pre-DRF field shapes; the endpoint route, lookup parameter, and field shapes will all be revised to match whichever PR is chosen and merged.
-
-**Until one of these PRs is merged onto `main`:**
-- Do NOT submit updates to a production target (`https://hssi.hsdcloud.org`)
-- PREPARE-mode runs (diff, payload construction) are still useful for dry-runs and review, but flag the payload as "format-pending" in reports
-- If the user asks to actually execute an update, warn them that the endpoint is not on production yet and confirm before proceeding
-
-When a PR is chosen and merged, this notice will be removed and field shapes will be aligned with the new format.
-
----
-
-## CRITICAL: Every POST Is Irreversible
-
-**The HSSI Update API permanently modifies the production database.** There is no undo. Every `POST /api/update` overwrites the specified fields on the live record.
+**The HSSI Update API permanently modifies the production database.** There is no undo. Every `PATCH /api/data/software/<uid>/` overwrites the specified fields on the live record.
 
 ### What this means for you:
 
-- **Never submit test payloads.** Do not POST to "see if it works."
-- **Never iterate by submitting.** If the POST fails, report the error. Do NOT retry or modify and resubmit.
-- **Always get user approval** before the POST. Show the complete diff and payload first.
+- **Never submit test payloads.** Do not PATCH to "see if it works."
+- **Never iterate by submitting.** If the PATCH fails, report the error. Do NOT retry or modify and resubmit.
+- **Always get user approval** before the PATCH. Show the complete diff and payload first.
 - **Additive by default.** Never remove data (authors, keywords, etc.) unless the user explicitly approves.
 
 ---
@@ -82,7 +63,7 @@ Load a pre-built payload from the specified file path. Execute Steps 8–10 only
 
 ## Authentication
 
-The update API requires a bearer token. Resolve it via this cascade:
+The PATCH endpoint requires a bearer token (the lookup endpoint at `/api/list/software/` is public). Resolve the token via this cascade:
 
 1. Check for `.env` file in the `hssi-codex-agents` repo root — look for `HSSI_UPDATE_TOKEN=...`
 2. Check the `HSSI_UPDATE_TOKEN` environment variable
@@ -102,11 +83,11 @@ Before extracting metadata, **always `git pull`** the repo to ensure it reflects
 
 ### Step 1: Identify Software in HSSI
 
-1. **Try exact lookup by repo URL:**
+1. **Lookup by repo URL** (public endpoint, exact-match only):
    ```
-   GET <target_url>/api/update/lookup?repo_url=<url>
-   Authorization: Bearer <token>
+   GET <target_url>/api/list/software/?repo_url=<url>
    ```
+   Returns `{"data": [{"id": "<uuid>", "name": "..."}, ...]}`. Because the match is exact (case-insensitive only — no URL normalization on the server), try canonical variants in order before giving up: with/without trailing `/`, with/without `.git` suffix, and for GitHub `tree`/`blob` URLs the bare `https://github.com/<owner>/<repo>` form. Use the first variant that returns a non-empty `data` array.
 2. **Fallback — search by name:**
    ```
    GET <target_url>/api/search/?q=<name>
@@ -116,7 +97,7 @@ Before extracting metadata, **always `git pull`** the repo to ensure it reflects
 
 ### Step 2: Fetch Current HSSI Metadata
 
-- `GET <target_url>/api/view/<softwareId>/`
+- `GET <target_url>/api/view/software/<uid>/` (public — no auth)
 - Parse the response into a comparable format
 - This is the baseline for the diff
 
@@ -206,8 +187,8 @@ Flag any removals with a warning. Present CONFLICT items for user decision.
 For user-approved changes only:
 
 1. **Normalize controlled-list values** against live endpoints on the target URL
-2. **Build the `fields` object** using the same shapes as `/api/submit`
-3. **Include only changed fields** + `softwareId`
+2. **Build the body** as a flat JSON object of camelCase field names → values, using the same shapes as `/api/submission/`. There is no `softwareId`/`fields` envelope — the `softwareId` goes in the URL path, and the body is just the changed fields.
+3. **Include only changed fields** in the body.
 
 See the `update-payload` skill for the complete field shape reference.
 
@@ -220,19 +201,21 @@ If invoked directly (not via orchestrator), show the complete JSON payload and a
 ### Step 8: Submit — One Shot, No Retries
 
 ```bash
-curl -X POST <target_url>/api/update \
+curl -X PATCH <target_url>/api/data/software/<uid>/ \
   -H 'Authorization: Bearer <token>' \
   -H 'Content-Type: application/json' \
   -d '<payload>'
 ```
 
+The `<uid>` is the software UUID resolved in Step 1; `<payload>` is the flat JSON object of changed fields built in Step 6.
+
 - Capture the full response
-- **If the POST fails:** Report the error. Do NOT retry or modify and resubmit.
-- **If the POST succeeds:** Proceed to Step 9.
+- **If the PATCH fails:** Report the error. Do NOT retry or modify and resubmit.
+- **If the PATCH succeeds:** Proceed to Step 9. The response includes `fieldsUpdated` (snake_case names) — log it for the report.
 
 ### Step 9: Roundtrip Verification
 
-1. Re-fetch `GET <target_url>/api/view/<softwareId>/`
+1. Re-fetch `GET <target_url>/api/view/software/<uid>/`
 2. For each field that was updated, confirm the new value is reflected
 3. Report any discrepancies
 
@@ -257,7 +240,7 @@ Present a summary:
 
 **Verdict:** PASS
 
-**Direct link:** <target_url>/api/view/<softwareId>/
+**Direct link:** <target_url>/api/view/software/<uid>/
 ```
 
 ---
@@ -267,10 +250,10 @@ Present a summary:
 1. **Default target is production** — `https://hssi.hsdcloud.org`. Always confirm the target URL with the user before submitting.
 2. **If user specifies localhost** — use `http://localhost` (no HTTPS).
 3. **Always show the diff and payload before submission** — never submit silently.
-4. **Require explicit user confirmation** before the POST.
+4. **Require explicit user confirmation** before the PATCH.
 5. **Additive by default** — never remove data without explicit user approval and a warning.
-6. **One POST only** — if it fails, report and stop.
-7. **VisibleSoftware only** — the update API only targets published entries.
+6. **One PATCH only** — if it fails, report and stop.
+7. **Visible software only** — the update endpoint returns 404 for hidden / unverified entries.
 8. **Token security** — resolve via cascade (.env → env var → ask user). Never hardcode.
 
 ---

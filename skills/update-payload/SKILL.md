@@ -11,21 +11,13 @@ description: >
 
 Build partial update payloads for existing HSSI software entries. Only changed fields are sent; omitted fields are preserved.
 
-> **WARNING: Every POST to `/api/update` modifies the production database permanently.** There is no undo. Build the payload correctly, get user approval, and submit once. Do not retry on failure.
-
-> **STATUS: Not yet on production.** Three candidate update-API implementations are currently in draft PRs on `hssi-website`, none of which are merged to `main`:
->
-> - [PR #28](https://github.com/Heliophysics-Software-Search-Interface/hssi-website/pull/28) — `feature/update-api-v2`
-> - [PR #29](https://github.com/Heliophysics-Software-Search-Interface/hssi-website/pull/29) — `feature/update-api-v3`
-> - [PR #30](https://github.com/Heliophysics-Software-Search-Interface/hssi-website/pull/30) — `feature/update-api-v4`
->
-> The three designs differ on endpoint route (`POST /api/update` vs `PATCH /api/data/software/<uid>/`), lookup endpoint and parameter name, and level of isolation from `SubmissionSerializer`. From the agent's perspective all three are functionally equivalent — only one field map needs to win. The field shapes documented below still reflect the legacy pre-DRF format (`firstName`/`lastName`, object-form `license`, snake_case version sub-keys). Once one PR is chosen and merged, this skill will be revised to match the winning route, lookup parameter, and field shape (expected: `givenName`/`familyName`, plain-string `license`, camelCase version sub-keys, aligned with `SubmissionSerializer`). Until then, **do not submit update payloads to a production target**.
+> **WARNING: Every PATCH to `/api/data/software/<uid>/` modifies the production database permanently.** There is no undo. Build the payload correctly, get user approval, and submit once. Do not retry on failure.
 
 ---
 
 ## Authentication
 
-Both endpoints require a bearer token:
+The `PATCH` update endpoint requires a bearer token. The `GET` lookup endpoint is public.
 
 ```
 Authorization: Bearer <token>
@@ -42,84 +34,95 @@ The token is **never** hardcoded in agent definitions or committed to git.
 
 ## Endpoints
 
-### POST /api/update — Partial Update
+### PATCH /api/data/software/<uid>/ — Partial Update
 
-Updates only the specified fields on an existing VisibleSoftware entry. Omitted fields are untouched.
+Updates only the provided fields on an existing visible Software entry. Omitted fields are untouched. The `softwareId` is in the URL path; the body contains only the fields to change.
+
+The endpoint runs the request through `SubmissionSerializer` in **USER view with `partial=True`**, so accepted field names and shapes are identical to the `/api/submission/` payload — minus the `submitter` field, which the update path explicitly rejects.
 
 **Request:**
 
+```
+PATCH /api/data/software/<uid>/
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
 ```json
 {
-  "softwareId": "uuid-of-visible-software",
-  "fields": {
-    "developmentStatus": "Active",
-    "version": {
-      "number": "v2.0.0",
-      "release_date": "2026-01-15",
-      "description": "Major rewrite",
-      "version_pid": "https://doi.org/10.5281/zenodo.99999999"
-    }
+  "developmentStatus": "Active",
+  "version": {
+    "number": "v2.0.0",
+    "releaseDate": "2026-01-15",
+    "description": "Major rewrite",
+    "versionPid": "https://doi.org/10.5281/zenodo.99999999"
   }
 }
 ```
 
-**Response (success):**
+**Response (success, 200):**
 
 ```json
 {
   "status": "ok",
   "softwareId": "uuid",
-  "fieldsUpdated": ["developmentStatus", "versionNumber"]
+  "fieldsUpdated": ["development_status", "version"]
 }
 ```
 
+`fieldsUpdated` returns serializer field names (snake_case) — incoming camelCase keys are auto-decamelized before validation.
+
 **Error responses:**
-- `403` — Missing, malformed, or invalid bearer token
-- `400` — Invalid JSON, missing softwareId, empty fields, software not found, update failed
+- `403` — Missing, malformed, or invalid bearer token; or `HSSI_UPDATE_TOKEN` unset on the server
+- `400` — Validation error (unknown field, wrong type, controlled-list miss, `submitter` provided)
+- `404` — Software not found, or not visible
 - `405` — Wrong HTTP method
 
 **Key behaviors:**
-- `softwareId` must reference a VisibleSoftware entry (rejects non-visible)
-- Only fields present in `fields` are updated; omitted fields are untouched
-- For M2M fields (authors, keywords, etc.), the provided value **fully replaces** that field (clear + re-add)
-- Updates `dateModified` on the existing SubmissionInfo — does NOT create a new one
+- The URL `<uid>` must reference a visible Software entry (404 otherwise)
+- Only fields present in the body are updated; omitted fields are untouched
+- For M2M fields (authors, keywords, etc.), the provided list **fully replaces** that field
+- Empty list `[]` clears the M2M; `null` clears nullable scalars
+- `submitter` is rejected with 400 — partial updates cannot rewrite the submitter
+- Touches the most recent `SubmissionInfo` on success: sets `modification_description = "Partial update via API: <fields>"` and bumps `date_modified` (auto_now). Does NOT create a new SubmissionInfo
 - Does NOT send confirmation emails
 - Wrapped in `transaction.atomic()`
 
-### GET /api/update/lookup — Software Lookup
+### GET /api/list/software/?repo_url=<url> — Software Lookup
 
-Exact-match lookup of VisibleSoftware by code repository URL.
+Exact-match (case-insensitive) lookup of visible Software by code repository URL. Public — no token required.
 
 **Request:**
 
 ```
-GET /api/update/lookup?repo_url=https://github.com/user/repo
-Authorization: Bearer <token>
+GET /api/list/software/?repo_url=https://github.com/user/repo
 ```
 
-**Response (single match):**
+**Response (200):**
 
 ```json
 {
-  "softwareId": "uuid",
-  "softwareName": "PackageName",
-  "codeRepositoryUrl": "https://github.com/user/repo"
+  "data": [
+    { "id": "uuid", "name": "PackageName" }
+  ]
 }
 ```
 
-**Response (zero or multiple matches):**
+The response only includes `id` and `name` — not the repo URL or any other fields. With no `?repo_url=` filter, the endpoint returns all visible software.
 
-```json
-{
-  "results": [...]
-}
-```
+**Behavior:** Pure exact-match — no URL normalization (no `.git` stripping, no trailing-slash collapse, no GitHub/GitLab path canonicalization). The agent must canonicalize the repo URL itself before calling this endpoint:
+
+1. Strip trailing `/` and `.git`
+2. Lowercase the host (`github.com`, `gitlab.com`)
+3. For GitHub URLs of the form `.../tree/<branch>/...` or `.../blob/<branch>/...`, drop everything after the second path segment
+
+If the canonical form returns no match, fall back to a name search via `/api/search/?q=<name>`.
 
 ---
 
-## Field Shapes in `fields` Object
+## Field Shapes in the PATCH Body
 
-The `fields` object uses the **same key names and shapes** as the `/api/submit` payload, with these notes:
+The PATCH body uses the **same key names and shapes** as the `/api/submission/` payload (both go through `SubmissionSerializer` in USER view). `submitter` is the only field rejected by the update path.
 
 | API Field | Shape | Notes |
 |-----------|-------|-------|
@@ -134,10 +137,10 @@ The `fields` object uses the **same key names and shapes** as the `/api/submit` 
 | `publicationDate` | String (`YYYY-MM-DD`) | |
 | `logo` | String URL | |
 | `licenseFileURL` | String URL | |
-| `authors` | Array of Person objects | `{firstName, lastName, identifier, affiliation}` |
+| `authors` | Array of Person objects | `{givenName, familyName, identifier, affiliation: [{name, identifier}, ...]}` |
 | `publisher` | Organization object | `{name, identifier}` |
-| `license` | Object or string | `{name, url}` or just the name |
-| `version` | Object | `{number, release_date, description, version_pid}` |
+| `license` | String | License name only — must match an existing `License.name` (case-insensitive) |
+| `version` | Object | `{number, releaseDate, description, versionPid}` |
 | `programmingLanguage` | Array of strings | |
 | `softwareFunctionality` | Array of strings (`"Parent: Child"`) | |
 | `relatedRegion` | Array of strings | |
@@ -159,18 +162,20 @@ The `fields` object uses the **same key names and shapes** as the `/api/submit` 
 
 ---
 
-## Key Differences from `/api/submit`
+## Key Differences from `/api/submission/`
 
-| Aspect | `/api/submit` | `/api/update` |
-|--------|--------------|---------------|
-| Root format | JSON array | JSON object |
+| Aspect | `POST /api/submission/` | `PATCH /api/data/software/<uid>/` |
+|--------|------------------------|-----------------------------------|
+| HTTP method | POST | PATCH |
+| Root format | JSON array of submission objects | JSON object of fields to change |
+| Software identity | Created — UUID returned | Existing — UUID in URL path |
 | Auth | None | Bearer token required |
-| Target | Creates new Software | Updates existing VisibleSoftware |
-| Required fields | 5 (submitter, name, repo, authors, description) | Only `softwareId` |
-| Submitter | Required | Not used |
-| Field behavior | All fields set (missing = null) | Only provided fields updated |
+| Target | Creates new Software | Updates an existing visible Software |
+| Required fields | 5 (submitter, name, repo, authors, description) | None — any subset is valid |
+| Submitter | Required | **Rejected with 400** |
+| Field behavior | All fields set (missing = null) | Only provided fields updated; omitted fields untouched |
 | Email | Sends confirmation | No email |
-| SubmissionInfo | Creates new | Updates existing `dateModified` |
+| SubmissionInfo | Creates new | Touches `modification_description` + `date_modified` on existing |
 | Reversibility | Creates permanent record | Modifies existing record permanently |
 
 ---
@@ -244,7 +249,7 @@ When comparing fresh metadata against HSSI data, classify each field as:
 ### Safety rules:
 
 - **Additive by default** — Never remove data (reduce authors, remove keywords) unless the user explicitly approves with a warning
-- **One POST only** — If it fails, report and stop. No retries.
+- **One PATCH only** — If it fails, report and stop. No retries.
 - **Present diff before submitting** — Always show the user what will change
 
 ---
@@ -253,7 +258,7 @@ When comparing fresh metadata against HSSI data, classify each field as:
 
 After a successful update:
 
-1. Re-fetch `GET /api/view/<softwareId>/` from the target URL
+1. Re-fetch `GET /api/view/software/<uid>/` from the target URL (no auth required)
 2. For each field that was updated, confirm the new value is reflected
 3. Report any discrepancies
 

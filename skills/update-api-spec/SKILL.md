@@ -1,19 +1,20 @@
 ---
 name: update-api-spec
 description: >
-  Update the submitter's API reference files from the hssi-website source code.
-  Use when the HSSI API has changed and reference files need syncing.
-  Clones or pulls the hssi-website repo, reads the relevant source files,
-  and updates submission-payload and submission-verification skills.
+  Sync the submitter's and updater's API reference skills with the hssi-website
+  source code. Use when the HSSI API has changed and reference files need
+  syncing. Clones or pulls the hssi-website repo, reads the relevant source
+  files, and updates submission-payload, submission-verification, and
+  update-payload skills.
 ---
 
 # Update API Spec
 
-Sync the submitter's reference files with the latest HSSI API source code.
+Sync the submitter's and updater's reference files with the latest HSSI API source code.
 
-**When to use:** The HSSI API has changed (new fields, renamed keys, changed shapes, new quirks) and the `submission-payload` and `submission-verification` skills need updating.
+**When to use:** The HSSI API has changed (new fields, renamed keys, changed shapes, new quirks) and the `submission-payload`, `submission-verification`, or `update-payload` skills need updating.
 
-**How often:** Rarely. The API is relatively stable. Run this when you notice submission failures due to field name mismatches, or when the HSSI team announces API changes.
+**How often:** Rarely. The API is relatively stable. Run this when you notice submission/update failures due to field name mismatches, or when the HSSI team announces API changes.
 
 ---
 
@@ -37,34 +38,44 @@ If the user already has a local clone (e.g., `~/git/hssi-website`), use that ins
 
 Read these specific files:
 
+#### Shared (covers both submit and update paths)
+
 1. **`concept/import_submission_notes.md`** — Official API documentation. Field list, required/recommended/optional classification, object schemas.
 
-2. **`concept/import_submission.json`** — HSSI developers' curated example payload. This is the authoritative template for the new-format payload shape; cross-reference with the serializer source.
+2. **`concept/import_submission.json`** — HSSI developers' curated example payload. Authoritative template for the new-format payload shape; cross-reference with the serializer source.
 
-3. **`django/website/views/api/software_api.py`** — The DRF submission endpoint view (`SubmissionAPI`). Shows the request/response shape, status codes, and the post-commit side effects (SoftwareEditQueue creation, email notification) that run outside the atomic transaction.
-
-4. **`django/website/models/serializers/submission.py`** — The DRF `SubmissionSerializer`. This is the authoritative field mapping and transformation logic for the new endpoint — it defines how submitted JSON is validated and stored. Pay special attention to:
-   - `to_internal_value_user()` — required field validation
+3. **`django/website/models/serializers/submission.py`** — The DRF `SubmissionSerializer`. Authoritative field mapping and transformation logic for both `POST /api/submission/` (full create) and `PATCH /api/data/software/<uid>/` (partial update — same serializer with `partial=True`). Pay special attention to:
+   - `to_internal_value_user()` — required field validation (skipped under `partial=True`)
    - `_get_or_create_person()` — Person dedup and field names (`given_name`/`family_name`)
    - `_get_or_create_org()` — Organization dedup
    - License handling (plain string input, `License.objects.filter(name__iexact=...)`)
    - Version object handling (`number`, `release_date`, `description`, `version_pid`)
+   - `update_user()` / `_apply_user_fields()` — the partial-update branch invoked by PATCH
 
-5. **`django/hssi/camel_case_renderer.py`** — Contains `decamelize_data()` and `CamelCaseJSONRenderer`. Explains how incoming camelCase JSON keys are automatically converted to snake_case before the serializer sees them.
+4. **`django/hssi/camel_case_renderer.py`** — `decamelize_data()` and `CamelCaseJSONRenderer`. Explains how incoming camelCase JSON keys are auto-converted to snake_case before the serializer sees them.
 
-6. **`django/website/models/serializers/util.py`** — Contains `SerialView` and shared serializer utilities used by both the submission and software serializers.
+5. **`django/website/models/serializers/util.py`** — `SerialView` enum and shared serializer utilities used by submission and software serializers; `HssiSerializer.update()` dispatches to `update_user()` for the USER view.
 
-7. **`django/website/urls.py`** — URL routing. Confirms the current endpoint paths for `/api/submission/` and related DRF views.
+6. **`django/website/urls.py`** — URL routing. Confirms the current endpoint paths.
 
-8. **`django/website/forms/names.py`** — Legacy field name constants. Less relevant for the new DRF-based endpoint (which uses serializer field names directly), but still referenced by legacy code paths.
+#### Submit path
 
-9. **`django/website/views/api_submit.py`** (legacy) — The old function-based `/api/submit` endpoint. Still wired in `urls.py` for backward compatibility. Consult only when investigating legacy behavior.
+7. **`django/website/views/api/software_api.py`** — `SubmissionAPI` (the `POST /api/submission/` view). Shows the request/response shape, status codes, and the post-commit side effects (`SoftwareEditQueue` creation, email notification) that run outside the atomic transaction.
+
+#### Update path
+
+8. **`django/website/views/api/software_api.py`** (also for update) — `SoftwareDetailAPI`. The `patch()` method is the canonical update endpoint. `get_permissions()` switches to `HasUpdateToken` for PATCH; `get_serializer_class()` switches to `SubmissionSerializer` for PATCH. `SoftwareListAPI.get()` implements the `?repo_url=<url>` filter used by the updater's lookup step.
+
+9. **`django/website/views/api/permissions.py`** — `HasUpdateToken` bearer-token permission class used by `SoftwareDetailAPI.patch()`. Uses `secrets.compare_digest`; fails closed when `HSSI_UPDATE_TOKEN` is unset.
+
+10. **`django/website/test_update_api.py`** — Regression tests for `PATCH /api/data/software/<uid>/` and the `/api/list/software/?repo_url=` lookup. Treat as the authoritative behavioral spec for the update path: response shape, error codes, M2M replacement, `null`-clears-scalar, empty-list-clears-M2M, `submitter` rejection, token unset/invalid.
 
 ### Step 3: Compare Against Current Skills
 
 Read the current versions of:
 - `skills/submission-payload/SKILL.md`
 - `skills/submission-verification/SKILL.md`
+- `skills/update-payload/SKILL.md`
 
 Compare the source files against the current skill content. Look for:
 - New fields added to the API
@@ -73,16 +84,18 @@ Compare the source files against the current skill content. Look for:
 - New or changed controlled-list endpoints
 - New backend quirks or representation differences
 - Changes to required vs optional field classification
+- Endpoint route or HTTP method changes (especially in `urls.py` and the view classes)
 
 ### Step 4: Update the Skill Files
 
-Update `submission-payload/SKILL.md` and `submission-verification/SKILL.md` to reflect any changes found. Specifically:
+Update `submission-payload/SKILL.md`, `submission-verification/SKILL.md`, and `update-payload/SKILL.md` to reflect any changes found. Specifically:
 
 - Update the Section-to-API-Field Mapping table
 - Update Object Specifications if schemas changed
 - Update Known Backend Quirks with any new findings
 - Update the controlled-list endpoint table if endpoints changed
 - Update the known representation differences in `submission-verification`
+- For `update-payload`: keep the PATCH endpoint contract, lookup endpoint, and field-shapes table aligned with `software_api.py` + `test_update_api.py`
 
 ### Step 5: Report Changes
 

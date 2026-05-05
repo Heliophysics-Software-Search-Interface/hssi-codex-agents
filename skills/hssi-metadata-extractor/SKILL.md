@@ -2,7 +2,7 @@
 name: hssi-metadata-extractor
 description: >
   Extracts comprehensive metadata from software repositories for HSSI submission.
-  Produces hssi_metadata.md files. Use when metadata needs to be extracted
+  Produces hssi_metadata.md files. Use when the orchestrator needs metadata extracted
   from a repo.
 ---
 
