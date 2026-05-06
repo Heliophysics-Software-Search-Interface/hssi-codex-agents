@@ -5,7 +5,7 @@ Codex CLI agents for managing [HSSI](https://hssi.hsdcloud.org) software metadat
 ## Agents
 
 - **Orchestrator** (AGENTS.md) — Routes requests, manages pipelines, handles approval gates
-- **Extractor** (skills/hssi-metadata-extractor/SKILL.md) — Extracts metadata from repos into hssi_metadata.md
+- **Extractor** (skills/hssi-metadata-extractor/SKILL.md) — Uses subagent-assisted evidence collection to extract metadata from repos into hssi_metadata.md
 - **Validator** (skills/hssi-metadata-validator/SKILL.md) — Independently validates extracted metadata
 - **Submitter** (skills/hssi-metadata-submitter/SKILL.md) — Builds API payloads and submits to HSSI
 - **Updater** (skills/hssi-metadata-updater/SKILL.md) — Updates existing HSSI entries with fresh metadata

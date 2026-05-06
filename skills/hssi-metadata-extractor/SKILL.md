@@ -21,6 +21,8 @@ Extract all available metadata from the given software repository and produce a 
 
 **Your job is authoring the metadata file** — extracting it, and finalizing its prose when asked (see *Canonical Finalization*). Produce or update the file and return. You do NOT invoke other agents (validator, submitter, updater).
 
+This extractor is intentionally subagent-assisted. When the user's request explicitly asks for this subagent-based extractor workflow, use the helper subagents described below to collect evidence in parallel. If the runtime does not allow subagents, or the user did not explicitly authorize subagent use in a Codex environment, run the same evidence scopes sequentially in the main extractor instead.
+
 ---
 
 ## How field decisions are made
@@ -139,57 +141,91 @@ Finish by confirming the header's `Validation Status` still reads `Pending`; rec
 
 ## Extraction Process
 
-Follow these steps **in order** to ensure comprehensive and accurate metadata extraction.
+Follow these phases in order. The main extractor owns orientation, conflict resolution, domain judgment, and writing `hssi_metadata.md`. Helper subagents collect evidence; they do not write the metadata file.
 
-### Step 1: Automated Metadata Collection
+### Phase 0: Main-Agent Orientation
 
-Maximize efficiency by using automated tools and APIs first.
+Before launching helpers, build enough context to keep the big picture:
 
-#### Step 1a: DOI-Based Metadata (DataCite & Zenodo APIs)
+1. Resolve the repository path and canonical repository URL. Prefer the user-provided URL; otherwise inspect `git remote -v`.
+2. Read the top of the primary README (`README*`) and any top-level manifest likely to name the package (`pyproject.toml`, `setup.cfg`, `setup.py`, `package.json`, `Project.toml`, `DESCRIPTION`, or similar).
+3. Inspect the top-level tree and a compact file list to understand the language mix, docs/tests/examples layout, and primary package/module directories.
+4. Run cheap git checks in the main context: recent commits, latest tags, and `git shortlog -sne` when useful for contributor corroboration.
+5. Start the SoMEF collector helper if a repository URL is available. Do not use an LLM subagent for SoMEF.
 
-1. **Search for a DOI** in the repository:
-   - Check CITATION.cff file
-   - Look for DOI badges in README.md
-   - Check codemeta.json
-   - Look for Zenodo integration files
+### Phase 1: Parallel Evidence Collection
 
-2. **If a DOI is found:**
-   - Query the DataCite API: `https://api.datacite.org/dois/{DOI}`
-   - If it's a Zenodo DOI (contains "zenodo"), also query: `https://zenodo.org/api/records/{RECORD_ID}`
-   - Extract all available metadata from these responses
+Launch the following five lightweight extraction subagents in parallel when subagents are available and authorized. Give each subagent the repo path, repository URL, the candidate-evidence schema below, and its scope. Subagents must return evidence only; they must not write `hssi_metadata.md`.
 
-See `hssi-field-definitions/sources/extraction-sources.md` (Stage 1 and Stage 2) for what these APIs supply per field.
+#### 1. DOI and API Subagent
 
-#### Step 1b: Repository Metadata (SoMEF)
+Scope:
+- Search DOI-bearing sources: `CITATION.cff`, `codemeta.json`, README badges/citation text, `.zenodo.json`, `zenodo.json`, and package metadata.
+- Query DataCite for candidate DOIs.
+- Query Zenodo for Zenodo DOIs.
 
-1. **Run SoMEF** on the code repository URL:
-   ```bash
-   somef describe -t 0.7 -r {REPOSITORY_URL} -o somef_output.json
-   ```
+Requirements:
+- Classify each DOI by role: software concept DOI, software version DOI, reference publication DOI, related publication DOI, dataset DOI, related software DOI, or unknown DOI.
+- Do not promote a paper DOI or dataset DOI into Field 2 Persistent Identifier.
+- Use context: badge labels, surrounding README text, structured relation types, DataCite `resourceTypeGeneral`, Zenodo `conceptdoi`, and citation-file keys.
+- Return raw API URLs checked and compact evidence candidates.
 
-2. **Parse the SoMEF output** and extract all available metadata
+Likely fields: 2, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 25, 26, 27, 28, 29.
 
-See `hssi-field-definitions/sources/extraction-sources.md` (Stage 3) for what SoMEF can supply per field.
+#### 2. PyHC Registry Subagent
 
-**Important:** SoMEF can be slow (30+ seconds) and the info it returns can be incorrect. This is normal.
+Scope:
+- Fetch and read all three PyHC registry YAML files completely:
+  - `https://raw.githubusercontent.com/heliophysicsPy/heliophysicsPy.github.io/main/_data/projects_core.yml`
+  - `https://raw.githubusercontent.com/heliophysicsPy/heliophysicsPy.github.io/main/_data/projects.yml`
+  - `https://raw.githubusercontent.com/heliophysicsPy/heliophysicsPy.github.io/main/_data/projects_unevaluated.yml`
 
-#### Step 1c: PyHC Metadata Check
+Requirements:
+- Use a lightweight LLM match judgment rather than a script-only decision.
+- Match by normalized repository URL, package name, import/package name, and description semantics.
+- Report exact matches, likely matches, rejected near-matches, and "not found" evidence.
+- Treat PyHC quality ratings as signals only; do not directly convert them to HSSI values without main-agent judgment.
 
-1. **Fetch all three PyHC registry files:**
-   - Core packages: https://raw.githubusercontent.com/heliophysicsPy/heliophysicsPy.github.io/main/_data/projects_core.yml
-   - Community packages: https://raw.githubusercontent.com/heliophysicsPy/heliophysicsPy.github.io/main/_data/projects.yml
-   - Unevaluated packages: https://raw.githubusercontent.com/heliophysicsPy/heliophysicsPy.github.io/main/_data/projects_unevaluated.yml
+Likely fields: 7, 8, 16, 23 signals, 24, 33, plus hints for 4, 5, and 22.
 
-2. **Read each YAML file completely** — Do NOT use grep or search shortcuts
+#### 3. Manifest and Structured Files Subagent
 
-3. **Parse each file** and check if the package appears in any of them by comparing:
-   - Package name
-   - Repository URL (code field)
-   - Description content
+Scope:
+- Read structured repository files: `pyproject.toml`, `setup.cfg`, `setup.py` (static reading only; do not execute), `package.json`, `Project.toml`, `DESCRIPTION`, `codemeta.json`, `CITATION.cff`, `.zenodo.json`, `zenodo.json`, `AUTHORS`, `CONTRIBUTORS`, `LICENSE*`, and similar top-level metadata files.
 
-4. **If found**, extract all available PyHC metadata
+Requirements:
+- Extract facts with file paths and short evidence quotes.
+- For license, prefer actual license files and SPDX identifiers over generated or inferred values.
+- For authors, preserve ORCIDs and affiliations when present.
+- Report checked structured files even when they are absent.
 
-#### Step 1d: Literature Sources (when the repository is thin or absent)
+Likely fields: 2, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 20, 24, 25, 26, 27, 28, 29, 33.
+
+#### 4. README and Documentation Subagent
+
+Scope:
+- Read `README*`, citation sections, install sections, docs index files, `docs/`, `doc/`, `.readthedocs.yml`, `.readthedocs.yaml`, `mkdocs.yml`, Sphinx `conf.py`, changelogs, examples/tutorial landing pages, and visible logo/media references.
+
+Requirements:
+- Extract narrative evidence for name, description, documentation, installation, citation, keywords, related packages, instruments, observatories, data sources, and science context.
+- Separate direct facts from inferred domain context.
+- Return concise quotes and paths, not long prose summaries.
+
+Likely fields: 7, 8, 9, 14, 16, 17, 20, 22, 24, 27, 28, 29, 30, 31, 32, 33, plus hints for 4 and 5.
+
+#### 5. Repository Capability Reconnaissance Subagent
+
+Scope:
+- Inspect code structure, public APIs, examples, tests, imports/includes, file I/O patterns, plotting functions, coordinate transform functions, model/simulation classes, data access clients, CI files, containers, and HPC/deployment clues.
+
+Requirements:
+- Return defensible capability evidence, not final Software Functionality classifications.
+- Prefer evidence from public APIs, examples, tests, and documented user workflows over private helper imports.
+- Distinguish user-facing capabilities from internal implementation details.
+
+Likely fields: 13, 17, 18, 19, 20, 21, plus evidence for main-agent judgment on 4, 5, and 22.
+
+### Literature Sources (when the repository is thin or absent)
 
 Some HSSI software has no source repository at all. A model or product page — a CCMC model page, a
 mission software page — is then the authoritative source and a valid Field 3 (see `fields/03`). Extract
@@ -206,32 +242,9 @@ a browser renders these pages, and the orchestrator may have one.
 Searching the software's name alone misses artifacts that never name it. Award numbers, the PI's name,
 or a companion dataset title are often better queries.
 
----
+### Field-Governed Synthesis Requirements
 
-### Step 2: Manual Repository Examination
-
-After automated extraction, **thoroughly examine the repository** to fill in remaining fields and verify automated results.
-
-#### Critical Fields Requiring Deep Analysis
-
-**Software Functionality (Field 4) and Related Region (Field 5)** are RECOMMENDED on the form but this workflow treats them as critical: they drive the site's Category and Region filters and its search. Read `fields/04` (which carries the full classification guide) and `fields/05`, be exhaustive, confirm every candidate against the live vocabulary, and leave either empty only when the evidence genuinely supports no value — never as an unexamined gap.
-
-#### Other Important Fields to Verify/Discover
-
-Examine these repository locations systematically:
-
-1. **README.md** — Software name, description, documentation links, installation instructions, citation info, badges
-2. **CITATION.cff** — Authors with ORCIDs, DOIs, preferred citation, version, license
-3. **codemeta.json** — Comprehensive structured metadata
-4. **LICENSE or LICENSE.txt** — License information
-5. **AUTHORS, CONTRIBUTORS, .zenodo.json** — Author information
-6. **Package metadata files** — setup.py, pyproject.toml, setup.cfg, package.json, DESCRIPTION, Project.toml
-7. **Documentation** — docs/ folder, readthedocs config
-8. **CI/CD configurations** — .github/workflows/, .travis.yml (operating system info)
-9. **Git history** — Tags for versions, commit activity for development status, CHANGELOG.md
-10. **Code analysis** — File I/O operations for file format support, import statements for dependencies
-
-**Every field's rubric governs its value** — see *How field decisions are made*. Cross-field rules that apply while you work through Step 2:
+**Every field's rubric governs its value** — see *How field decisions are made*. Cross-field rules that apply while collecting and synthesizing evidence:
 
 - **Controlled-list values: the live API is authoritative, not the snapshot.** The `Possible Values` blocks in the field files are dated snapshots; use them to pick candidates and confirm each against `GET <target>/api/models/<Model>/rows/all/` before writing it (the one field → model table and the matching semantics are in `hssi-field-definitions/sources/vocabulary-authority.md`). In extract-only mode, with no target given, resolve against production `https://hssi.hsdcloud.org`. If a value you want has no live row, record what the repo actually says and flag it rather than substituting a near-miss.
 - **The fields with the most decision weight** — 6 (authors and organizations), 25/26 (funding), 29/30 (related and interoperable software), 31/32 (instruments and observatories) and 33 (logo) — have long rubrics with concrete exclusion lists. Read those files in full before writing the field; do not work from memory of them.
@@ -239,6 +252,108 @@ Examine these repository locations systematically:
 - **Record what you considered and dropped.** For every candidate a rubric excluded (a dependency kept out of Field 30, an instrument name-drop kept out of Field 31, a README figure kept out of Field 33), leave a brief `Note:` so the dossier carries the audit trail.
 
 Each field file's *Where to find it, and traps* section says where its value is usually found.
+
+### SoMEF Collector Helper
+
+Use `tools/collect_somef.py` for SoMEF. This helper deliberately does **minimal work**:
+
+```bash
+python tools/collect_somef.py --repo-url "{REPOSITORY_URL}" --output-dir "{REPO_PATH}"
+```
+
+The helper:
+- Runs `somef describe -t 0.7 -r {REPOSITORY_URL} -o {output-dir}/somef_output.json`
+- Preserves the raw SoMEF output exactly as written by SoMEF
+- Does not parse fields, choose best values, truncate output, summarize output, or rewrite SoMEF JSON
+- Writes a small manifest containing command metadata, output paths, byte counts, and SHA-256 hashes
+
+The main extractor must inspect the raw SoMEF output as an evidence source. SoMEF is useful corroborating evidence but is never authoritative when it conflicts with primary repository files or curated metadata.
+
+If the helper exits nonzero, inspect `{output-dir}/somef_output_manifest.json` and stderr. Continue extraction without SoMEF if the raw output file was not produced.
+
+### Candidate-Evidence Schema
+
+Each subagent must return a compact JSON or fenced markdown block with this shape:
+
+```json
+{
+  "scope": "doi-apis | pyhc-registry | manifest | readme-docs | repo-capability",
+  "checked": [
+    {
+      "target": "README.md",
+      "status": "found | absent | queried | failed",
+      "note": "brief note"
+    }
+  ],
+  "candidates": [
+    {
+      "field": 15,
+      "field_name": "License",
+      "value": "BSD-3-Clause",
+      "value_type": "fact",
+      "source_type": "repository-file",
+      "evidence_path": "LICENSE",
+      "evidence_quote": "short quote or exact key/value; omit if not useful",
+      "confidence": "high",
+      "note": "why this candidate is relevant"
+    }
+  ],
+  "observations": [
+    {
+      "topic": "capability evidence",
+      "evidence_path": "examples/demo.py",
+      "evidence_quote": "short quote or symbol name",
+      "note": "what this suggests; not a final HSSI value"
+    }
+  ],
+  "not_found": [
+    {
+      "field": 2,
+      "field_name": "Persistent Identifier",
+      "checked": ["CITATION.cff", "README DOI badges", "codemeta.json"],
+      "note": "No software DOI found in checked sources"
+    }
+  ]
+}
+```
+
+Rules:
+- `value_type` must be `fact` or `inference`.
+- Evidence quotes should be short. Prefer path, key, symbol, and line context over long excerpts.
+- Missing evidence is evidence: use `checked` and `not_found` to show what was examined.
+- Multiple candidates for the same field are expected. Do not flatten them.
+- Subagents should report uncertainty explicitly instead of forcing a single answer.
+
+### Phase 2: Main-Agent Synthesis
+
+After evidence collection, the main extractor reconciles candidates and writes the final metadata file.
+
+Main-agent responsibilities:
+1. Build a field-by-field candidate matrix from subagent outputs, SoMEF raw output, and Phase 0 findings.
+2. Resolve conflicts using field-specific source priority, not one global source order.
+3. Inspect raw files directly when high-impact fields conflict or evidence is weak.
+4. Own final judgment for Field 4 Software Functionality, Field 5 Related Region, Field 8 Description, and Field 22 Related Phenomena.
+5. Read and apply the Field 4 rubric in the main context after reviewing README/docs, PyHC hints, and capability reconnaissance evidence.
+6. Write `hssi_metadata.md` with all 33 fields and source notes.
+
+### Field-Specific Source Priority
+
+Use this priority guidance when candidates conflict:
+
+- **Code Repository:** user-provided URL or `git remote` from the local repo beats API-derived URLs.
+- **Persistent Identifier and Version PID:** context-classified software concept/version DOIs from Zenodo/DataCite/CITATION/codemeta beat README badges. Never use a reference-publication DOI as the software persistent identifier.
+- **Authors:** `CITATION.cff`, `codemeta.json`, `.zenodo.json`, and DataCite/Zenodo creator metadata beat package-maintainer fields. Git history is corroborating evidence, not author authority.
+- **Software Name:** PyHC exact match, README title, and package metadata are all strong; use the name that best reflects the software's public identity.
+- **Description:** prefer curated PyHC or repository README/docs descriptions when accurate and current; synthesize if necessary. SoMEF descriptions are candidates only.
+- **License:** actual `LICENSE*` file and SPDX identifiers in package metadata beat DataCite/Zenodo and SoMEF.
+- **Version:** release tags and package metadata beat SoMEF. Zenodo can supply version DOI/date when it corresponds to the selected version.
+- **Programming Language:** repository file mix, package metadata, and public code structure beat API guesses.
+- **Documentation and Logo:** README/docs config/PyHC exact match beat SoMEF.
+- **File Formats, Data Sources, OS, CPU Architecture:** code, docs, CI, and package metadata beat SoMEF.
+- **Functionality, Region, Phenomena:** main-agent domain synthesis beats any single source. PyHC keywords and repo capability evidence are hints.
+- **Related Publications, Datasets, Software, Instruments, Observatories, Funders, Awards:** structured DOI/citation/codemeta sources and explicit docs/README statements beat SoMEF.
+
+SoMEF is low-priority corroborating evidence for all fields because it is automated and can be wrong.
 
 ---
 
@@ -259,21 +374,26 @@ Before saving `hssi_metadata.md`, verify:
 
 When you receive a repository to analyze:
 1. **If you were given a seed** (existing HSSI metadata and/or a prior `hssi_metadata.md`), pre-populate all fields from it first (see *Seeding From Existing Metadata*), then use the steps below to fill gaps and find newer/better values.
-2. Identify the repository platform, remote URL (for SoMEF and API calls), and full current git commit SHA for the provenance header
-3. Start Step 1a: Search for DOI
-4. Proceed through Steps 1–2 systematically
-5. Run the pre-write sanity check
-6. Write the `hssi_metadata.md` file and return
+2. Complete Phase 0 orientation in the main context.
+3. Identify the repository platform, remote URL (for SoMEF and API calls), and full current git commit SHA for the provenance header
+4. Start the SoMEF collector helper if a repository URL is available.
+5. Launch the five evidence subagents in parallel when subagents are available and authorized.
+6. Reconcile candidates using field-specific priority and inspect raw sources where needed.
+7. Run the pre-write sanity check.
+8. Write `hssi_metadata.md` and return.
 
 ---
 
 ## Metadata Priorities
 
-When metadata conflicts between sources, use this priority order:
-1. **PyHC metadata** (manually curated, most trustworthy)
-2. **DataCite/Zenodo APIs** (official DOI metadata)
-3. **SoMEF** (automated and comprehensive, but unreliable)
-4. **Manual examination** (use your judgment)
+Do not use one global source order. Apply the field-specific priority guidance above.
+
+General principles:
+- Primary repository files and structured citation metadata beat generated summaries.
+- Curated PyHC metadata is high value when the package identity match is strong.
+- DataCite and Zenodo are authoritative for DOI-hosted software metadata, but DOI roles must be classified carefully.
+- SoMEF is low-priority corroborating evidence because it is automated and can be wrong.
+- Manual domain synthesis is required for Software Functionality, Related Region, Related Phenomena, and the final Description.
 
 ## Mandatory vs. Optional Fields
 
@@ -304,5 +424,6 @@ If you cannot find metadata for a field after thorough searching:
 - Mark it as "Not found"
 - Add a note if you have relevant context (e.g., "Not found — no LICENSE file in repository")
 - For a field that a publication could supply (Fields 14, 25, 26, 27), check the paper's
-  Acknowledgments and Data Availability Statement before concluding it isn't there — see Step 1d and the field files
+  Acknowledgments and Data Availability Statement before concluding it isn't there — see
+  *Literature Sources* above
 - Do NOT fabricate or guess metadata values
