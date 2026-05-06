@@ -20,5 +20,7 @@ Codex CLI agents for managing [HSSI](https://hssi.hsdcloud.org) software metadat
 6. Optionally: ask Codex to submit the metadata to HSSI (production or localhost)
 7. To update existing entries: ask Codex to e.g. "update sunpy on HSSI"
 
+(Note: for the best results, always use the latest available model on the highest thinking setting—via `/model`)
+
 ## Claude Code
 See the [Claude Code version of this repo](https://github.com/Heliophysics-Software-Search-Interface/hssi-claude-agents).
