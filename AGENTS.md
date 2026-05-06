@@ -41,7 +41,7 @@ The file is deliberately free-form. There is no required schema beyond the 33 nu
 
 | Agent | File | Purpose |
 |-------|------|---------|
-| **Extractor** | `skills/hssi-metadata-extractor/SKILL.md` | Extracts metadata from repos → `hssi_metadata.md` |
+| **Extractor** | `skills/hssi-metadata-extractor/SKILL.md` | Uses subagent-assisted evidence collection to extract metadata from repos → `hssi_metadata.md` |
 | **Validator** | `skills/hssi-metadata-validator/SKILL.md` | Independently validates metadata files |
 | **Submitter** | `skills/hssi-metadata-submitter/SKILL.md` | Builds API payloads, submits to HSSI (two-phase) |
 | **Updater** | `skills/hssi-metadata-updater/SKILL.md` | Updates existing HSSI entries (two-phase) |
@@ -67,10 +67,12 @@ If ambiguous, ask which mode the user wants. If clear, proceed.
 ### Extract Only (default)
 
 1. Ensure repo exists locally (clone to `repos/` if URL given; `git pull` if already cloned)
-2. Invoke **extractor** with the repo path → produces `hssi_metadata.md`
+2. Invoke **extractor** with the repo path and this explicit instruction: "Use the subagent-assisted HSSI Metadata Extractor workflow." → produces `hssi_metadata.md`
 3. Invoke **validator** on the produced file → returns report
 4. Fix all ERRORs from the validation report (simple format issues can be fixed directly)
 5. Present WARNINGs and SUGGESTIONs to the user
+
+For extraction modes, do not run the old single-agent linear extraction process in the orchestrator. The configured Extractor workflow is subagent-assisted by default; the user does not need to mention subagents separately when asking for metadata extraction. If subagent tools are unavailable or blocked, report that blocker instead of silently falling back to the old workflow.
 
 ### Extract and Submit
 

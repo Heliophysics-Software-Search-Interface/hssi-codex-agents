@@ -21,7 +21,7 @@ Extract all available metadata from the given software repository and produce a 
 
 **Your job is authoring the metadata file** — extracting it, and finalizing its prose when asked (see *Canonical Finalization*). Produce or update the file and return. You do NOT invoke other agents (validator, submitter, updater).
 
-This extractor is intentionally subagent-assisted. When the user's request explicitly asks for this subagent-based extractor workflow, use the helper subagents described below to collect evidence in parallel. If the runtime does not allow subagents, or the user did not explicitly authorize subagent use in a Codex environment, run the same evidence scopes sequentially in the main extractor instead.
+This extractor is intentionally subagent-assisted by default. Any request routed to this skill for metadata extraction should use the helper subagents described below to collect evidence in parallel; the user does not need to mention subagents separately. Do not run the old single-agent linear extraction workflow. If subagent tools are unavailable or blocked, report that blocker and ask whether to continue sequentially rather than silently falling back.
 
 ---
 
@@ -149,7 +149,9 @@ Before launching helpers, build enough context to keep the big picture:
 
 ### Phase 1: Parallel Evidence Collection
 
-Launch the following five lightweight extraction subagents in parallel when subagents are available and authorized. Give each subagent the repo path, repository URL, the candidate-evidence schema below, and its scope. Subagents must return evidence only; they must not write `hssi_metadata.md`.
+Launch the following five lightweight extraction subagents in parallel after Phase 0. Give each subagent the repo path, repository URL, the candidate-evidence schema below, and its scope. Subagents must return evidence only; they must not write `hssi_metadata.md`.
+
+This fan-out is mandatory for the subagent-assisted extractor. If the subagent tool is unavailable or blocked, stop and report the blocker instead of continuing with an unannounced sequential extraction.
 
 #### 1. DOI and API Subagent
 
@@ -441,7 +443,7 @@ When you receive a repository to analyze:
 2. Complete Phase 0 orientation in the main context.
 3. Identify the repository platform, remote URL (for SoMEF and API calls), and full current git commit SHA for the provenance header
 4. Start the SoMEF collector helper if a repository URL is available.
-5. Launch the five evidence subagents in parallel when subagents are available and authorized.
+5. Launch the five evidence subagents in parallel.
 6. Reconcile candidates using field-specific priority and inspect raw sources where needed.
 7. Run the pre-write sanity check.
 8. Write `hssi_metadata.md` and return.
