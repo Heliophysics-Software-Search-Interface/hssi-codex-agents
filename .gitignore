@@ -1,6 +1,10 @@
 # macOS
 .DS_Store
 
+# Python cache
+__pycache__/
+*.py[cod]
+
 # Environment variables (tokens, secrets)
 .env
 

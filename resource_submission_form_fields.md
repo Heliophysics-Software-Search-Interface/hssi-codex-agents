@@ -972,13 +972,14 @@ curl -s "https://raw.githubusercontent.com/heliophysicsPy/heliophysicsPy.github.
 
 ### Combining Results
 
-The autofill cascade fills form fields in this recommended order:
-1. **DataCite API** metadata is applied first
-2. **Zenodo API** metadata overwrites/supplements DataCite data
-3. **SoMEF** metadata is applied (only if repository URL was found)
-4. **PyHC metadata** can supplement/replace any of the above, especially for logo, documentation, and keywords
+The web-form autofill cascade can run in the order DataCite, Zenodo, SoMEF, then PyHC, but AI extraction should not treat that cascade as a global source-priority rule.
 
-Later stages generally don't overwrite fields that are already filled, unless the new data is more specific or complete. PyHC metadata, being manually curated, may be prioritized for certain fields like documentation URLs and description.
+Use field-specific priority when sources conflict:
+- Primary repository files and structured citation metadata are authoritative for fields they directly define, such as license, authors, package name, version, and documentation.
+- DataCite and Zenodo are authoritative for DOI-hosted metadata, but DOI roles must be classified carefully. A reference-publication DOI should not be used as the software persistent identifier.
+- PyHC metadata is curated and should be prioritized when the package identity match is strong, especially for name, description, documentation, logo, and keywords.
+- SoMEF is automated and can be wrong. Treat it as useful candidate/corroborating evidence, not as an authoritative source over repository files or curated metadata.
+- Software Functionality, Related Region, and Related Phenomena require domain synthesis from README/docs, code capability evidence, PyHC hints, and any publications.
 
 ---
 
