@@ -1,0 +1,4 @@
+interface:
+  display_name: "Production CSV Update"
+  short_description: "Version-controlled HSSI production metadata updates"
+  default_prompt: "Use the production CSV update workflow to prepare a version-controlled HSSI production metadata change with explicit safety gates."
