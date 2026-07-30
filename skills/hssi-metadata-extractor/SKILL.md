@@ -11,6 +11,8 @@ description: >
 
 You are the **HSSI Metadata Extractor** — an agent that extracts comprehensive metadata from software repositories and produces `hssi_metadata.md` files for the Heliophysics Software Search Interface (HSSI).
 
+Before extracting, read and follow `skills/hssi-field-definitions/SKILL.md` and `skills/software-functionality/SKILL.md`.
+
 ---
 
 ## Your Mission
@@ -150,12 +152,12 @@ After automated extraction, **thoroughly examine the repository** to fill in rem
 - Requires understanding the full breadth of what the software does
 - Be **exhaustive** — try not to miss any functionality
 - Use the `software-functionality` skill for detailed classification guidance, code patterns, library mappings, and common mistakes to avoid
-- Select ALL that apply from the allowed values in the `hssi-field-definitions` skill
+- Select ALL that apply, using the `hssi-field-definitions` lists to pick candidates — then **confirm each candidate against the live vocabulary** at `/api/models/FunctionCategory/rows/all/` before writing it into the file (see "Controlled-list values" below)
 
 **Related Region (MANDATORY):**
 - Also critically important
 - Requires understanding the physical regions the software is commonly used for
-- Options: Earth Atmosphere, Earth Magnetosphere, Interplanetary Space, Planetary Magnetospheres, Solar Environment
+- **Fetch the options from `/api/models/Region/rows/all/`** — there are 24, and they are finer-grained than the five broad regions this file used to list (`Earth Ionosphere`, `Earth Thermosphere`, `Earth Magnetotail`, `Corona`, `Photosphere`, per-planet magnetospheres, …). Prefer the most specific applicable region over a broad one.
 - Select ALL that apply
 
 #### Other Important Fields to Verify/Discover
@@ -173,7 +175,17 @@ Examine these repository locations systematically:
 9. **Git history** — Tags for versions, commit activity for development status, CHANGELOG.md
 10. **Code analysis** — File I/O operations for file format support, import statements for dependencies
 
-**Organization names (Author Affiliation, Funder) — expand acronyms.** When you encounter an acronym for an affiliation (Field 6) or funder (Field 25), record the full institutional name instead. Example: `NASA` -> `National Aeronautics and Space Administration`. If the source only contains an ambiguous acronym you can't confidently expand, leave it as-is and note it so the validator/user can resolve it.
+**Controlled-list values — the live API is authoritative, not the skill's snapshot.** The **Possible Values** lists in `hssi-field-definitions` are a dated snapshot. Use them to *pick candidates*; use the live vocabulary to confirm those candidates *exist* before writing them into `hssi_metadata.md`:
+
+```
+GET <target>/api/models/<Model>/rows/all/
+```
+
+Applies to Fields 4, 5, 13, 15, 17, 18/19, 20, 21, 22, 23 and 31/32 — the endpoint for each is tabled in the `hssi-field-definitions` skill. In extract-only mode (no target given), resolve against production `https://hssi.hsdcloud.org`.
+
+This matters because the backend matches with `name__iexact` after a bare `.strip()` — no aliases, no fuzzy matching. A value that is one character off (a missing trailing period, a straight quote where the row has a curly one) fails the whole submission later. Vocabularies also differ by target: as of 2026-07-29 `License` had two rows on prod that do not exist on localhost. If a value you want has no live row, record what the repo actually says and flag it for the user rather than substituting a near-miss.
+
+**Organization names (Author Affiliation, Funder) — expand acronyms.** When you encounter an acronym for an affiliation (Field 6) or funder (Field 25), record the full institutional name instead. Example: `NASA` → `National Aeronautics and Space Administration`. If the source only contains an ambiguous acronym you can't confidently expand, leave it as-is and note it so the validator/user can resolve it.
 
 **Organization authors (Field 6) — detect and record a ROR.** An *author* can be an organization (a lab, consortium, or institution credited as an author), not just a person. Recognize these signals: a CITATION.cff author entry with a single `name:` key and no `given-names`/`family-names`; a codemeta.json / JSON-LD author with `"@type": "Organization"`; a DataCite or Zenodo creator whose `nameType` is `"Organizational"`; or a name that is clearly a group (`… Team`, `… Community`, `… Consortium`, `… Collaboration`). For such an author, look up its **ROR** via the ror.org API (`https://api.ror.org/organizations?query=<name>`) and record that ROR as the author's identifier — no separate "organization" marker is needed, since HSSI infers org-ness from the `ror.org` identifier. Keep the person-vs-organization distinction: use an ORCID for people and a ROR for organization authors.
 
